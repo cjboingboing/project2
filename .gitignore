@@ -1,0 +1,22 @@
+# Data (raw/derived - too large and re-downloadable, don't commit)
+/data/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Spark local run artifacts
+derby.log
+metastore_db/
+spark-warehouse/
+
+# Environments
+.proj2_bnpl/
+proj2_bnpl/
+
+# OS/editor
+.DS_Store
+.vscode/
