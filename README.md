@@ -14,17 +14,25 @@
 
 All cleaned outputs are written to `data/tables/processed/` (`merchants_clean`, `transactions_clean`, `consumer_fraud_probability`, `merchant_fraud_probability`, `consumers`) as Parquet.
 
+**External data — ABS**
+- `download_external.py`: 2021 Census by postal area → `abs_census_poa` (population, median age, income, rent, mortgage). Zero medians set to null.
+- `join_external.py`: joined onto consumers by postcode → `consumers_abs` (one row per `user_id`). Postcodes padded to 4 digits.
+- 83,181 consumers (16.6%) have no ABS match (mostly PO box postcodes): `abs_*` null, `abs_matched = False`.
+
 ## Left to do
 
 - **Imputation** of null fraud probabilities on unmatched transactions — `notebooks/imputation.ipynb` is stubbed out, not yet implemented (likely a model-based approach).
 - **Outlier detection** on transactions/merchants.
-- **External data — ABS**: not yet pulled in. `tbl_consumer.csv` has `postcode`/`state`, so the plan is to link in ABS SEIFA (socio-economic index) and/or Census data by postcode → SA2 concordance for consumer-level demographic/socio-economic features.
+- **Unmatched ABS consumers**: decide on imputation.
+- **Join `consumers_abs` onto transactions** on `user_id`.
 - EDA and feature engineering on the merged dataset.
 - Modelling.
 
 ## Running
 
 ```bash
+python scripts/download_external.py
+python scripts/join_external.py
 python scripts/process.py
 # or, on a real Spark cluster:
 spark-submit scripts/process.py
