@@ -17,13 +17,21 @@ All cleaned outputs are written to `data/tables/processed/` (`merchants_clean`, 
 **External data — ABS**
 - `download_external.py`: 2021 Census by postal area → `abs_census_poa` (population, median age, income, rent, mortgage). Zero medians set to null.
 - `join_external.py`: joined onto consumers by postcode → `consumers_abs` (one row per `user_id`). Postcodes padded to 4 digits.
-- 83,181 consumers (16.6%) have no ABS match (mostly PO box postcodes): `abs_*` null, `abs_matched = False`.
+
+**ABS findings**
+- 499,999 consumers; 416,818 (83.4%) matched an ABS postal area.
+- 83,181 (16.6%) unmatched, left null with `abs_matched = False`:
+  - 65,023 PO box / mail-only postcodes (no residents, so no Census data)
+  - 18,009 postcodes with no ABS postal area (mostly CBD, e.g. `2001`, `3001`)
+  - 149 with postcode `9999`
+- 7,909 NT/ACT postcodes were missing the leading zero (`862` → `0862`), fixed by padding.
+- Some matched areas still have null medians (rent and mortgage most affected).
 
 ## Left to do
 
 - **Imputation** of null fraud probabilities on unmatched transactions — `notebooks/imputation.ipynb` is stubbed out, not yet implemented (likely a model-based approach).
 - **Outlier detection** on transactions/merchants.
-- **Unmatched ABS consumers**: decide on imputation.
+- **Unmatched ABS consumers**: impute (e.g. state medians), map PO boxes to a location, or keep null.
 - **Join `consumers_abs` onto transactions** on `user_id`.
 - EDA and feature engineering on the merged dataset.
 - Modelling.
