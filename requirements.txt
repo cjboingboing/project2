@@ -5,6 +5,7 @@ comm==0.2.3
 debugpy==1.8.21
 defusedxml==0.7.1
 executing==2.2.1
+geopandas==1.1.4
 ipykernel==7.3.0
 ipython==9.17.1
 ipython_pygments_lexers==1.1.1
@@ -13,10 +14,13 @@ joblib==1.6.0
 jupyter_client==8.10.0
 jupyter_core==5.9.1
 Levenshtein==0.27.4
+mapclassify==2.11.0
 matplotlib-inline==0.2.2
+matplotlib==3.11.2
 nest-asyncio2==1.7.2
 nltk==3.10.3
 numpy==2.5.2
+openpyxl==3.1.5
 packaging==26.3
 pandas==3.0.5
 parso==0.8.7
@@ -27,6 +31,7 @@ psutil==7.2.2
 ptyprocess==0.7.0
 pure_eval==0.2.3
 py4j==0.10.9.9
+pyarrow==25.0.1
 Pygments==2.21.0
 pyspark==4.2.0
 python-dateutil==2.9.0.post0
