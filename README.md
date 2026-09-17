@@ -9,7 +9,7 @@
 **Cleaned**
 - `tbl_merchants.parquet`: parsed the free-text `tags` column into `keyword_phrase`, `revenue_code`, `take_rate`; malformed ABNs (wrong length) nulled out.
 - Merchant keywords: lemmatized (WordNet) and auto-corrected rare/misspelled words to the nearest frequent word (Levenshtein distance ≤ 3), filler words dropped.
-- Transactions: deduplicated (confirmed no duplicate `order_id`s).
+- Transactions: deduplicated on (`order_datetime`, `user_id`, `dollar_value`) — `order_id` itself is always unique, so it can't catch the same purchase recorded twice.
 - No outlier detection has been done yet — deliberately left out of `process.py`.
 
 All cleaned outputs are written to `data/tables/processed/` (`merchants_clean`, `transactions_clean`, `consumer_fraud_probability`, `merchant_fraud_probability`, `consumers`) as Parquet.
