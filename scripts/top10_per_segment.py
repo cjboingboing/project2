@@ -1,18 +1,21 @@
 """
-Top 10 merchants in each behaviour segment using the validated v2 ranking logic.
+Top 10 merchants in each behavioural segment using the v2 ranking framework.
 
-Why this version exists
------------------------
-The previous script chose different weights for each segment using correlations
-with realised revenue in the Mar-Aug 2022 test window. That makes the segment
-weights test-informed and therefore too optimistic for an honest evaluation.
+Method
 
-This version removes that leakage:
-1. use the v2 weights that were fixed before evaluating the test window;
-2. recompute feature percentile ranks *within each behaviour segment*;
-3. apply the same v2 rank-space shrinkage for revenue and growth;
-4. rank merchants by that segment-specific v2 score;
-5. keep global-v2 and past-revenue rankings only as references.
+This script ranks merchants within each behavioural segment using the same
+feature weights as the v2 merchant ranking model.
+
+For each segment:
+
+- feature percentile ranks are recalculated relative to merchants in the same segment;
+- the validated v2 feature weights are applied;
+- rank-space shrinkage is applied to revenue and growth for merchants with limited transaction history;
+- merchants are ranked based on their resulting segment score;
+- the global v2 ranking and revenue-only ranking are retained for comparison.
+
+This approach allows merchants to be evaluated against similar merchants while
+keeping the ranking methodology consistent across segments.
 
 Inputs
 ------
