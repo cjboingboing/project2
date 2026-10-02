@@ -1,6 +1,9 @@
 # Data (raw/derived - too large and re-downloadable, don't commit)
 /data/
 
+# old notebooks
+imputation.original.ipynb.bak
+
 # Jupyter
 .ipynb_checkpoints/
 
