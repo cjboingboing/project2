@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pyspark.sql import SparkSession, functions as F
 
-from process import load_merchants
+from process_cleaning import load_merchants
 
 #Paths
 
