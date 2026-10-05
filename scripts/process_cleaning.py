@@ -27,10 +27,13 @@ Important duplicate policy
 For the transaction table:
 1. rows missing essential transaction fields are removed;
 2. all rows sharing a duplicated order_id are saved to duplicate_order_ids/;
-3. one deterministic row per order_id is kept in transactions_clean/.
+3. one row per order_id is kept in transactions_clean/, via Spark's
+   dropDuplicates(["order_id"]).
 
-This single window-based pass also removes exact duplicate transactions, so
-there is no separate expensive full-row dropDuplicates() shuffle beforehand.
+Which row survives step 3 is whatever Spark's dropDuplicates picks, not a
+chosen "best" row: order_datetime has no real time-of-day (the raw
+transaction files only carry a partition-level date), so it cannot be used
+to break ties meaningfully and is not used to rank duplicate rows.
 """
 
 from pathlib import Path
@@ -83,6 +86,7 @@ FILLER_WORDS = [
     "-",
     "and",
     "or",
+    "al",
     "a",
     "an",
     "the",
@@ -282,13 +286,27 @@ def load_merchants(spark: SparkSession) -> DataFrame:
     return merchants
 
 
+def split_keyword_phrase(phrase):
+    """Split one comma-separated keyword phrase into punctuation-free words."""
+    return F.split(
+        F.trim(
+            F.regexp_replace(
+                F.lower(phrase),
+                r"[^a-z0-9\s-]",
+                "",
+            )
+        ),
+        r"\s+",
+    )
+
+
 def build_keyword_correction_map(
     merchants: DataFrame,
 ) -> dict[str, str]:
     """
-    Build a small keyword correction map from the merchant vocabulary.
+    Build a small word-level correction map from the merchant vocabulary.
 
-    This follows the logic from the original process.py:
+    This follows the logic from notebooks/downloads.ipynb:
     noun lemmatisation + rare-word Levenshtein matching to frequent words.
     """
     words = (
@@ -300,10 +318,7 @@ def build_keyword_correction_map(
         .filter(F.trim(F.col("keyword")) != "")
         .select(
             F.explode(
-                F.split(
-                    F.trim(F.col("keyword")),
-                    r"\s+",
-                )
+                split_keyword_phrase(F.col("keyword"))
             ).alias("keyword")
         )
         .filter(F.col("keyword") != "")
@@ -424,12 +439,17 @@ def clean_merchant_keywords(
     merchants: DataFrame,
     correction_map: dict[str, str],
 ) -> DataFrame:
-    """Clean ARRAY<STRING> merchant keywords safely."""
-    cleaned = F.transform(
-        F.col("keywords"),
-        lambda word: F.lower(
-            F.trim(word)
-        ),
+    """
+    Break the comma-split keyword phrases into a flat list of clean words.
+
+    The correction map is word-level, so each phrase must be split into words
+    before fillers are dropped and corrections applied.
+    """
+    cleaned = F.flatten(
+        F.transform(
+            F.col("keywords"),
+            split_keyword_phrase,
+        )
     )
 
     cleaned = F.filter(
@@ -715,21 +735,17 @@ def clean_transactions(
     transactions: DataFrame,
 ) -> tuple[DataFrame, DataFrame]:
     """
-    Standardise and deduplicate transactions in ONE window-based pass.
+    Standardise transactions and remove duplicate order_ids.
 
-    This avoids the previous expensive sequence:
-        full-row dropDuplicates
-        -> groupBy(order_id)
-        -> join duplicate IDs
-        -> count duplicate rows
-        -> another window shuffle
+    order_datetime has no real time-of-day (the raw transaction files only
+    carry a partition-level date), so it cannot be used to rank duplicate
+    rows by "earliest" or "most complete." Duplicates are instead resolved
+    with Spark's built-in dropDuplicates; which row survives for a given
+    order_id is whatever Spark picks, not a chosen "best" row.
 
-    Instead, one partition-by-order_id operation provides:
-        _order_id_count
-        _order_id_rank
-
-    The ranked result is persisted to DISK_ONLY so the cleaned output and
-    duplicate-audit output can reuse it without recomputing the shuffle.
+    The post-cast, post-dropna frame is persisted to DISK_ONLY so the cleaned
+    output and duplicate-audit output can reuse it without recomputing the
+    casts and filter from scratch.
     """
     require_columns(
         transactions,
@@ -755,6 +771,10 @@ def clean_transactions(
         )
         .withColumn(
             "order_datetime",
+            F.col("order_datetime").cast("timestamp"),
+        )
+        .withColumn(
+            "order_date",
             F.col("order_datetime").cast("date"),
         )
         .withColumn(
@@ -774,63 +794,30 @@ def clean_transactions(
 
     # These values identify/describe the actual transaction and should not be
     # fabricated by statistical imputation.
-    transactions = transactions.dropna(
-        subset=CORE_TRANSACTION_COLUMNS
-    )
-
-    partition_window = (
-        Window.partitionBy("order_id")
-    )
-
-    rank_window = (
-        Window
-        .partitionBy("order_id")
-        .orderBy(
-            F.col("_source_order").asc_nulls_last(),
-            F.col("order_datetime").asc_nulls_last(),
-            F.col("user_id").asc_nulls_last(),
-            F.col("merchant_abn").asc_nulls_last(),
-            F.col("dollar_value").asc_nulls_last(),
-        )
-    )
-
-    ranked = (
+    transactions = (
         transactions
-        .withColumn(
-            "_order_id_count",
-            F.count(F.lit(1)).over(
-                partition_window
-            ),
-        )
-        .withColumn(
-            "_order_id_rank",
-            F.row_number().over(
-                rank_window
-            ),
+        .dropna(
+            subset=CORE_TRANSACTION_COLUMNS
         )
         .persist(StorageLevel.DISK_ONLY)
     )
 
-    duplicate_order_rows = (
-        ranked
-        .filter(
-            F.col("_order_id_count") > 1
-        )
-        .drop(
-            "_order_id_count",
-            "_order_id_rank",
-        )
+    duplicate_ids = (
+        transactions
+        .groupBy("order_id")
+        .count()
+        .filter(F.col("count") > 1)
+        .select("order_id")
     )
 
-    cleaned = (
-        ranked
-        .filter(
-            F.col("_order_id_rank") == 1
-        )
-        .drop(
-            "_order_id_count",
-            "_order_id_rank",
-        )
+    duplicate_order_rows = transactions.join(
+        duplicate_ids,
+        on="order_id",
+        how="inner",
+    )
+
+    cleaned = transactions.dropDuplicates(
+        ["order_id"]
     )
 
     return cleaned, duplicate_order_rows
@@ -848,6 +835,11 @@ def attach_fraud_probabilities(
     """
     Left-join fraud scores.
 
+    Fraud scores are reported once per entity per day. Both the fraud
+    lookups and transactions carry only a calendar date for order_datetime
+    (no real time-of-day exists in either source), so this joins on that
+    shared date directly -- there is no finer granularity to preserve.
+
     A null score means there was no matching fraud record; it does NOT mean
     zero fraud probability.
     """
@@ -855,7 +847,7 @@ def attach_fraud_probabilities(
         merchant_fraud
         .select(
             "merchant_abn",
-            "order_datetime",
+            F.col("order_datetime").alias("order_date"),
             F.col(
                 "fraud_probability"
             ).alias(
@@ -868,7 +860,7 @@ def attach_fraud_probabilities(
         consumer_fraud
         .select(
             "user_id",
-            "order_datetime",
+            F.col("order_datetime").alias("order_date"),
             F.col(
                 "fraud_probability"
             ).alias(
@@ -883,7 +875,7 @@ def attach_fraud_probabilities(
             merchant_lookup,
             on=[
                 "merchant_abn",
-                "order_datetime",
+                "order_date",
             ],
             how="left",
         )
@@ -891,7 +883,7 @@ def attach_fraud_probabilities(
             consumer_lookup,
             on=[
                 "user_id",
-                "order_datetime",
+                "order_date",
             ],
             how="left",
         )
@@ -917,10 +909,17 @@ def main() -> None:
     # Adaptive execution helps Spark combine/split shuffle partitions based
     # on their actual size. 64 is a saner local starting point than doing
     # hundreds of tiny shuffle tasks for this dataset.
+    # Local mode runs driver and executor in one JVM, so without an explicit
+    # heap size Spark defaults to 1g -- too small for the shuffles/hash
+    # aggregations (fraud-probability joins, order_id dedup) over 14M+ rows.
     spark = (
         SparkSession.builder
         .appName(
             "assignment2_cleaning_standardisation"
+        )
+        .config(
+            "spark.driver.memory",
+            "8g",
         )
         .config(
             "spark.sql.adaptive.enabled",

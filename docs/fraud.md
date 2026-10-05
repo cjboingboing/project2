@@ -13,17 +13,19 @@
 
 Scores are recorded per user per day, and `order_datetime` has no time of day. A score links to one exact transaction only when that user made a single transaction that day, which is 27% of scored days. On shared days, the consumer classifier picks out one transaction: the day's top transaction has a median score of 0.94, against 0.06 for the next.
 
-Side effect: the "earliest transaction that day" rule in `imputation.ipynb` is effectively arbitrary.
+Side effect: the "earliest transaction that day" rule in `archive/imputation.ipynb` is effectively arbitrary.
 
 ## Notebooks
 
 | Notebook | What it does | Output |
 |---|---|---|
-| `fraud_classifier.ipynb` | Per-transaction consumer tier classifier. Three models for score ≥30, ≥50 and ≥70; split by user; each user-day weighted to count once | none |
-| `merchant_risk.ipynb` | Merchant-level summary features and a classifier for "is this merchant ever scored?"; gives each merchant a risk tier | `merchant_risk` |
-| `merchant_fraud_penalty.ipynb` | Merchant tier classifier on the 114 scored days; expected fraud loss; fraud-adjusted v2 ranking | `merchant_ranking_v2_fraud_adjusted.parquet`, `top100_v2_fraud_adjusted.csv` |
+| `fraud_models.ipynb` | The two diagnostic classifiers, which explain what the scores respond to and do not feed the ranking. Part A: per-transaction consumer tier classifier (three models for score ≥30, ≥50 and ≥70; split by user; each user-day weighted to count once). Part B: merchant tier classifier on the 114 scored days | trained models and evaluation data in `data/tables/models/` |
+| `fraud_penalty.ipynb` | Part A: merchant-level summary features and a classifier for "is this merchant ever scored?"; gives each merchant a risk tier. Part B: expected fraud loss from the observed scores; fraud-adjusted v2 ranking | `merchant_risk`, `merchant_ranking_v2_fraud_adjusted.parquet`, `top100_v2_fraud_adjusted.csv` |
+| `fraud_penalty.ipynb`, Part C | Test only, not adopted: imputes consumer scores for user-days with none, from the user's spend that day, and compares the resulting loss and ranking with the adopted ones | none |
+| `fraud_imputation_check.ipynb` | Visual check of that imputation: the spend-band lookup, real against imputed loss through time, and what the imputation adds per month | none |
+| `archive/imputation.ipynb` | The abandoned regression approach, kept as a record | none |
 
-Run order: `join_external_sa2.py` → `01_data_quality_eda.ipynb` → `merchant_ranking_v2.ipynb` → `merchant_risk.ipynb` → `merchant_fraud_penalty.ipynb`.
+Run order: `join_external_sa2.py` → `01_data_quality_eda.ipynb` → `merchant_ranking_v2.ipynb` → `fraud_penalty.ipynb`. `fraud_models.ipynb` is independent of the ranking; it needs `join_external.py` (for `consumers_abs`) and is only required by `final_findings.ipynb`.
 
 ## Results
 
