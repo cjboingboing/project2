@@ -2,25 +2,27 @@
 
 Rank ~4,400 merchants and recommend the top 100 overall, plus the top 10 in each segment.
 
+Start with **`notebooks/final_findings.ipynb`** — the summary for the presentation. Everything below is how it was built.
+
 ## Pipeline
 
 | Step | Script / notebook | Output |
 |---|---|---|
 | Clean | `process_cleaning.py` | `transactions_clean`, `merchants_clean`, `consumers`, fraud tables |
-| External — postcode | `download_external.py` → `join_external.py` | `abs_census_poa` → `consumers_abs` |
 | External — SA2 | `download_external_sa2.py` → `join_external_sa2.py` | `abs_census_sa2`, `abs_poa_sa2_primary` → `consumers_sa2` |
 | EDA + features | `01_data_quality_eda.ipynb` | `merchant_features` (24 columns) |
 | Segments | `segment_behaviour.py` | `merchant_behaviour_segments` (4 segments) |
-| Product check | `segment_merchants.py` | `merchant_segments` (supporting only, see below) |
+| Product check | `segment_merchants.py` | `merchant_segments` (supporting only, see Findings) |
 | Ranking | `merchant_ranking_v2.ipynb`, `validation_timesplit.ipynb` | `merchant_ranking_v2.parquet`, `top100_v2.csv` |
+| Fraud | `fraud_models.ipynb`, `fraud_imputation_check.ipynb`, `fraud_penalty.ipynb` | consumer tier classifier, imputed scores, merchant risk tiers and fraud penalty |
 | Top 10 per segment | `top10_per_segment.py` | `top10_per_segment.csv` |
+| Slide figures | `make_plots.py` | PNGs under `plots/` |
 
 ## Findings
 
 **Data** (`01_data_quality_eda.ipynb`)
 - 14,195,505 transactions, one row per `order_id`. 4,422 ABNs trade but only 4,026 have metadata — the other 396 (580,830 txns, ~$202.65M) are excluded from anything needing category or take rate.
 - Outliers kept, not removed: the largest is ~$105,194 at an antique merchant already averaging ~$20,250.
-- Fraud scores are missing for ~99% of transactions *inside* their coverage window — selective, not a coverage gap. Left null.
 
 **ABS** (`abs_sa2.ipynb`)
 - 83.4% of consumers match an area; the same 16.6% miss under both postcode and SA2, because the SA2 bridge is built from postal areas. Mostly PO box postcodes (65,023), then postcodes with no ABS area (18,009).
@@ -40,36 +42,39 @@ Rank ~4,400 merchants and recommend the top 100 overall, plus the top 10 in each
 - Behaviour is not product: every segment holds 13–26% of every category. That justifies segmenting this way rather than by what merchants sell.
 - Percentile-rank the dimensions before clustering — raw values put 76% of merchants in one cluster.
 - `value_cv` is named "stability" but measures **volatility** (high = erratic).
+- Merchants are scored within their own segment using the v2 weights, so ranks are comparable to peers rather than to the whole market.
 
 **Ranking** (`merchant_ranking_v2.ipynb`, `validation_timesplit.ipynb`)
 - Train Feb 2021 – Feb 2022, test Mar – Aug 2022. v1 → v2: Spearman 0.740 → 0.905, capture 74.3% → 85.4%.
 - **Past revenue alone still wins**: 99.9% capture, 99 of the realised top 100. v2 costs ~$1.54M over six months, in exchange for expressing fragility and customer risk. Unsettled.
 - ABS features barely predict revenue (+0.029 income, +0.022 IRSAD) → 5% weight, kept as a risk lens.
-- Per-segment weights beat global v2 in 3 of 4 segments but still lose to past revenue. They were fitted on the test window, so treat them as optimistic.
+
+**Fraud** (`fraud_models.ipynb`, `fraud_imputation_check.ipynb`, `fraud_penalty.ipynb`)
+- Supplied fraud scores cover ~1% of transactions, so a consumer classifier predicts P(score ≥ 30 / 50 / 70) from transaction behaviour, and the gaps are imputed from a spend-band lookup.
+- Merchants get risk tiers and an expected fraud loss, which feeds a penalty into the v2 ranking.
 
 ## Left to do
 
 - **Decide: v2 or the naive baseline** — open questions at the end of `docs/ranking_system_brainstorm.md`.
-- **Fraud** is excluded from the ranking entirely: model it, or state the exclusion in the report.
-- **Unmatched ABS consumers** (16.6%): impute, map PO boxes to a location, or keep null.
 - **The 396 merchants with no metadata**: decide what to report.
-- **Sign off segment names**; **refit per-segment weights** on a held-out split.
-- **`requirements.txt` is broken**: `matplotlib` pinned twice (3.11.1 and 3.11.2) so `pip install -r` fails, and `nbformat==4.2.0` will not import on Python 3.13.
-- Final summary notebook and slides.
+- **Sign off segment names** (Established / Rising / Fading / Intermittent, set in `NAMES` in `scripts/top10_per_segment.py`).
+- Run every notebook end to end before submission — a few still have cells without saved output.
+- Slides (due Sun 11 Oct).
 
 ## Running
 
 ```bash
-python scripts/download_external.py      # ABS by postcode
-python scripts/download_external_sa2.py  # ABS by SA2 (~160MB first run, then cached)
-python scripts/join_external.py
+pip install -r requirements.txt           # PySpark also needs Java 17
+python scripts/download_external_sa2.py   # ABS by SA2 (~160MB first run, then cached)
 python scripts/join_external_sa2.py
-python scripts/process_cleaning.py       # cleaned tables (~14M transactions)
+python scripts/process_cleaning.py        # cleaned tables (~14M transactions)
 # then notebooks/01_data_quality_eda.ipynb   -> merchant_features
-python scripts/segment_behaviour.py      # 4 segments from the 6 dimensions
-python scripts/segment_merchants.py      # product categories (supporting check)
+python scripts/segment_behaviour.py       # 4 segments from the 6 dimensions
+python scripts/segment_merchants.py       # product categories (supporting check)
 # then notebooks/merchant_ranking_v2.ipynb   -> merchant_ranking_v2.parquet
-python scripts/top10_per_segment.py      # top 10 per segment
+# then the three fraud notebooks             -> risk tiers and the fraud penalty
+python scripts/top10_per_segment.py       # top 10 per segment
+python scripts/make_plots.py              # slide figures into plots/
 ```
 
 Raw data goes in `data/tables/` (gitignored — not committed, re-downloadable).
