@@ -33,12 +33,12 @@ Start with **`notebooks/final_findings.ipynb`** — the summary for the presenta
 
 | Segment | Merchants | Character |
 |---|---|---|
-| Established | 1,615 (40%) | wide customer base, steady |
-| Rising | 971 (24%) | mid-size, growing |
-| Fading | 889 (22%) | mid-size, shrinking |
-| Intermittent | 551 (14%) | trade some months only, erratic |
+| Established | 1,616 (40.1%) | wide customer base, steady |
+| Rising | 969 (24.1%) | mid-size, growing |
+| Fading | 888 (22.1%) | mid-size, shrinking |
+| Intermittent | 553 (13.7%) | trade some months only, erratic |
 
-- Established holds **88% of the $96.4M** BNPL revenue. The best merchant outside it ranks 769th overall, which is exactly why the top 10 is taken per segment.
+- Established holds **87.9% of the $91.2M** BNPL revenue. The best merchant outside it ranks 780th overall, which is exactly why the top 10 is taken per segment.
 - Behaviour is not product: every segment holds 13–26% of every category. That justifies segmenting this way rather than by what merchants sell.
 - Percentile-rank the dimensions before clustering — raw values put 76% of merchants in one cluster.
 - `value_cv` is named "stability" but measures **volatility** (high = erratic).

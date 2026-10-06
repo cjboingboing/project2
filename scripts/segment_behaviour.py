@@ -2,7 +2,7 @@
 Segments merchants by behaviour: k-means on the 6 agreed dimensions.
 
 Dimensions: BNPL revenue, customer reach, engagement, growth, activity, stability.
-Skewed dimensions are log-scaled, all are standardised, then k is chosen by
+Each dimension is percentile-ranked, then standardised, then k is chosen by
 silhouette over k = 3..5 (the spec allows 3-5 segments).
 
 Input:  data/tables/processed/merchant_features (from 01_data_quality_eda.ipynb)
