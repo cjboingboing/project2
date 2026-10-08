@@ -1,3 +1,9 @@
+"""ARSIP - skrip ini dipakai untuk membuat folder varian waktu kami membandingkan
+tiga set bobot. Folder notebooks_hybrid/ sudah dilebur ke notebooks/ (bobot hybrid
+adalah yang dipakai), dan notebooks_machine/ sudah pindah ke notebooks_weve_tried/
+dengan akhiran _machine. Disimpan sebagai catatan cara varian itu dibuat.
+"""
+
 import json, re, shutil
 from pathlib import Path
 

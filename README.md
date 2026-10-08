@@ -18,6 +18,14 @@ Start with **`notebooks/final_findings.ipynb`** — the summary for the presenta
 | Top 10 per segment | `top10_per_segment.py` | `top10_per_segment.csv` |
 | Slide figures | `make_plots.py` | PNGs under `plots/` |
 
+The ranking weights live in two places and must match: `WEIGHTS_V2` in
+`notebooks/merchant_ranking_v2.ipynb` and the copy in `scripts/top10_per_segment.py`.
+
+`notebooks_weve_tried/` holds the alternatives that were built, measured and rejected — the v1
+ranking, the fitted-weight experiments, the walk-forward validation, and the whole pipeline under
+the pure learned weights. Its README explains what each one was and why it is not the shipped
+version.
+
 ## Findings
 
 **Data** (`01_data_quality_eda.ipynb`)
@@ -46,6 +54,16 @@ Start with **`notebooks/final_findings.ipynb`** — the summary for the presenta
 
 **Ranking** (`merchant_ranking_v2.ipynb`, `validation_timesplit.ipynb`)
 - Train Feb 2021 – Feb 2022, test Mar – Aug 2022. v1 → v2: Spearman 0.740 → 0.905, capture 74.3% → 85.4%.
+- **The shipped weights are now the hybrid set** (`notebooks_weve_tried/learned_weights.ipynb`,
+  `rolling_validation.ipynb`): revenue 0.70, `active_month_ratio` 0.18, `customer_spread` 0.05,
+  ABS 0.05, growth 0.02. Three independent fits across walk-forward folds all put
+  `active_month_ratio` near 0.22 where the hand weights had given it 0.02 — that single row is the
+  correction. On the September holdout: 91.1% capture, 80 of the realised top 100, against 87.8%
+  and 74 for the hand weights.
+- Dropping the ABS features entirely (the pure learned fit) reaches 91.5% and the same 80 correct
+  picks, so keeping them costs **0.4 points and no accuracy**. That variant is kept in
+  `notebooks_weve_tried/` rather than shipped, because the brief requires external data to inform
+  the ranking.
 - **Past revenue alone still wins**: 99.9% capture, 99 of the realised top 100. v2 costs ~$1.54M over six months, in exchange for expressing fragility and customer risk. Unsettled.
 - ABS features barely predict revenue (+0.029 income, +0.022 IRSAD) → 5% weight, kept as a risk lens.
 
@@ -55,7 +73,7 @@ Start with **`notebooks/final_findings.ipynb`** — the summary for the presenta
 
 ## Left to do
 
-- **Decide: v2 or the naive baseline** — open questions at the end of `docs/ranking_system_brainstorm.md`.
+- **Decide: the weighted score or the naive baseline** — past revenue alone still captures ~100% in every window tested. The weighted score is kept for fraud, segments and explainability; that trade-off needs stating in the report, not resolving in code.
 - **The 396 merchants with no metadata**: decide what to report.
 - **Sign off segment names** (Established / Rising / Fading / Intermittent, set in `NAMES` in `scripts/top10_per_segment.py`).
 - Run every notebook end to end before submission — a few still have cells without saved output.

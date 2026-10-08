@@ -1,7 +1,10 @@
-"""Compare the three weightings of the ranking side by side.
+"""Compare the shipped ranking against the alternatives we tried.
 
-Reads each variant's own outputs and reports how much the shortlists actually differ.
-Run after all three have been executed:
+The shipped pipeline (notebooks/) now runs on the hybrid weights and writes to
+data/tables/processed. The pure-learned-weight variant lives in notebooks_weve_tried/
+and writes to data/variants/machine/processed.
+
+Run after both have been executed:
 
     python scripts/compare_variants.py
 """
@@ -13,25 +16,20 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 VARIANTS = {
-    "hand (notebooks/)": PROJECT_ROOT / "data" / "tables" / "processed",
-    "hybrid":            PROJECT_ROOT / "data" / "variants" / "hybrid" / "processed",
-    "machine":           PROJECT_ROOT / "data" / "variants" / "machine" / "processed",
+    "shipped (hybrid)": PROJECT_ROOT / "data" / "tables" / "processed",
+    "machine weights":  PROJECT_ROOT / "data" / "variants" / "machine" / "processed",
 }
 
 
-def load(folder: Path, name: str) -> pd.DataFrame | None:
+def load(folder: Path, name: str):
     path = folder / name
-    if not path.exists():
-        return None
-    return pd.read_csv(path)
+    return pd.read_csv(path) if path.exists() else None
 
 
 def main() -> None:
     tops, rows = {}, []
     for label, folder in VARIANTS.items():
         top = load(folder, "top100_v2.csv")
-        fraud = load(folder, "top100_v2_fraud_adjusted.csv")
-        seg = load(folder, "top10_per_segment.csv")
         if top is None:
             print(f"[belum dijalankan] {label}: {folder/'top100_v2.csv'} tidak ada")
             continue
@@ -41,31 +39,24 @@ def main() -> None:
             "merchants in top 100": len(top),
             "BNPL revenue in top 100 ($M)": round(top["estimated_bnpl_revenue"].sum() / 1e6, 2),
             "median transactions": int(top["transaction_count"].median()),
-            "fraud-adjusted list": "yes" if fraud is not None else "missing",
-            "top 10 per segment": "yes" if seg is not None else "missing",
+            "fraud-adjusted list": "yes" if load(folder, "top100_v2_fraud_adjusted.csv") is not None else "missing",
+            "top 10 per segment": "yes" if load(folder, "top10_per_segment.csv") is not None else "missing",
         })
 
     if not rows:
-        print("tidak ada varian yang sudah dijalankan")
+        print("tidak ada yang sudah dijalankan")
         return
 
-    print("\n=== PROFIL TIAP VARIAN ===")
+    print("\n=== PROFIL ===")
     print(pd.DataFrame(rows).set_index("variant").to_string())
 
-    print("\n=== BERAPA TOKO YANG SAMA DI TIAP PASANGAN (dari 100) ===")
-    labels = list(tops)
-    overlap = pd.DataFrame(index=labels, columns=labels, dtype="object")
-    for a in labels:
-        for b in labels:
-            overlap.loc[a, b] = len(tops[a] & tops[b])
-    print(overlap.to_string())
-
-    if len(labels) == 3:
-        everywhere = set.intersection(*tops.values())
-        print(f"\nToko yang terpilih oleh ketiganya : {len(everywhere)}/100")
-        for a in labels:
-            only = tops[a] - set.union(*(tops[b] for b in labels if b != a))
-            print(f"Hanya muncul di '{a}' : {len(only)}")
+    if len(tops) == 2:
+        a, b = list(tops)
+        shared = len(tops[a] & tops[b])
+        print(f"\n=== TUMPANG TINDIH ===")
+        print(f"{a} vs {b}: {shared}/100 toko sama")
+        print(f"hanya di '{a}': {len(tops[a] - tops[b])}")
+        print(f"hanya di '{b}': {len(tops[b] - tops[a])}")
 
 
 if __name__ == "__main__":

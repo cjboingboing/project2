@@ -1,7 +1,6 @@
 # Pure learned weights — no floors
 
-One of three weightings of the same ranking system. The other two are `notebooks/` (the hand-chosen
-weights the group has been using) and the sibling variant folder.
+One of three weightings of the same ranking system. The other two are `notebooks/` (the shipped pipeline, now on the hybrid weights).
 
 ## What differs from `notebooks/`
 
@@ -52,12 +51,12 @@ Files this variant writes:
 In order, from the project root:
 
 ```
-notebooks_machine/merchant_ranking_v2.ipynb
-notebooks_machine/fraud_penalty.ipynb
-notebooks_machine/fraud_imputation_check.ipynb
-notebooks_machine/segmentation.ipynb
-python notebooks_machine/scripts/top10_per_segment.py
-notebooks_machine/final_findings.ipynb
+notebooks_weve_tried/merchant_ranking_v2.ipynb
+notebooks_weve_tried/fraud_penalty.ipynb
+notebooks_weve_tried/fraud_imputation_check.ipynb
+notebooks_weve_tried/segmentation.ipynb
+python notebooks_weve_tried/scripts/top10_per_segment.py
+notebooks_weve_tried/final_findings.ipynb
 ```
 
 Or double-click `jalankan_3_varian.command`, which runs both variants end to end and prints the

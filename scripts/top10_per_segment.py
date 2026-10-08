@@ -69,15 +69,15 @@ NAMES = {
 
 # These are the final v2 weights from merchant_ranking_v2.ipynb.
 WEIGHTS_V2 = {
-    "estimated_bnpl_revenue": 0.70,
-    "log_value_growth": 0.08,
-    "transactions_per_customer": 0.04,
-    "repeat_rate": 0.03,
-    "stability": 0.03,
-    "active_month_ratio": 0.02,
-    "customer_spread": 0.05,
-    "customer_income": 0.03,
-    "customer_irsad": 0.02,
+    "estimated_bnpl_revenue":     0.7,
+    "log_value_growth":           0.02,
+    "transactions_per_customer":  0.0,
+    "repeat_rate":                0.0,
+    "stability":                  0.0,
+    "active_month_ratio":         0.18,
+    "customer_spread":            0.05,
+    "customer_income":            0.03,
+    "customer_irsad":             0.02,
 }
 
 assert abs(sum(WEIGHTS_V2.values()) - 1.0) < 1e-9
