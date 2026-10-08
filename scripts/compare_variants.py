@@ -16,8 +16,8 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 VARIANTS = {
-    "shipped (hybrid)": PROJECT_ROOT / "data" / "tables" / "processed",
-    "machine weights":  PROJECT_ROOT / "data" / "variants" / "machine" / "processed",
+    "shipped (hybrid)": (PROJECT_ROOT / "data" / "tables" / "processed", "hybrid"),
+    "machine weights":  (PROJECT_ROOT / "data" / "variants" / "machine" / "processed", "machine"),
 }
 
 
@@ -28,10 +28,10 @@ def load(folder: Path, name: str):
 
 def main() -> None:
     tops, rows = {}, []
-    for label, folder in VARIANTS.items():
-        top = load(folder, "top100_v2.csv")
+    for label, (folder, tag) in VARIANTS.items():
+        top = load(folder, f"top100_{tag}.csv")
         if top is None:
-            print(f"[belum dijalankan] {label}: {folder/'top100_v2.csv'} tidak ada")
+            print(f"[belum dijalankan] {label}: {folder}/top100_{tag}.csv tidak ada")
             continue
         tops[label] = set(top["merchant_abn"])
         rows.append({
@@ -39,7 +39,7 @@ def main() -> None:
             "merchants in top 100": len(top),
             "BNPL revenue in top 100 ($M)": round(top["estimated_bnpl_revenue"].sum() / 1e6, 2),
             "median transactions": int(top["transaction_count"].median()),
-            "fraud-adjusted list": "yes" if load(folder, "top100_v2_fraud_adjusted.csv") is not None else "missing",
+            "fraud-adjusted list": "yes" if load(folder, f"top100_{tag}_fraud_adjusted.csv") is not None else "missing",
             "top 10 per segment": "yes" if load(folder, "top10_per_segment.csv") is not None else "missing",
         })
 

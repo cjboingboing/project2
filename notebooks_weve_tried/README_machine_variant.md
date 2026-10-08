@@ -6,7 +6,7 @@ One of three weightings of the same ranking system. The other two are `notebooks
 
 **Three lines, and nothing else:**
 
-1. `WEIGHTS_V2` in `merchant_ranking_v2.ipynb` — the weights below.
+1. `WEIGHTS_HYBRID` in `merchant_ranking_machine.ipynb` — the weights below.
 2. `PROCESSED` / `PROCESSED_PATH` in every notebook — points at `data/variants/machine/processed/`
    so the three weightings never overwrite each other's results.
 3. `SCRIPTS` in `segmentation.ipynb` — loads `top10_per_segment.py` from this folder's own
@@ -42,8 +42,8 @@ symlinks back to `data/tables/processed/`, so nothing is duplicated on disk.
 
 Files this variant writes:
 
-- `merchant_ranking_v2.parquet`, `top100_v2.csv`, `weights_v2.csv`, `v2_holdout_results.csv`
-- `merchant_ranking_v2_fraud_adjusted.parquet`, `top100_v2_fraud_adjusted.csv`, `merchant_risk`
+- `merchant_ranking_machine.parquet`, `top100_machine.csv`, `weights_machine.csv`, `machine_holdout_results.csv`
+- `merchant_ranking_machine_fraud_adjusted.parquet`, `top100_machine_fraud_adjusted.csv`, `merchant_risk`
 - `top10_per_segment.csv`
 
 ## How to run it
@@ -51,7 +51,7 @@ Files this variant writes:
 In order, from the project root:
 
 ```
-notebooks_weve_tried/merchant_ranking_v2.ipynb
+notebooks_weve_tried/merchant_ranking_machine.ipynb
 notebooks_weve_tried/fraud_penalty.ipynb
 notebooks_weve_tried/fraud_imputation_check.ipynb
 notebooks_weve_tried/segmentation.ipynb

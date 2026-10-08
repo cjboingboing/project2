@@ -29,19 +29,19 @@ VARIANTS = {
  },
 }
 
-NOTEBOOKS = ["merchant_ranking_v2.ipynb","fraud_penalty.ipynb",
+NOTEBOOKS = ["merchant_ranking_hybrid.ipynb","fraud_penalty.ipynb",
              "fraud_imputation_check.ipynb","segmentation.ipynb","final_findings.ipynb"]
 
 # files each variant WRITES - these must never be symlinked
-WRITTEN = {"merchant_ranking_v2_features.parquet","merchant_ranking_v2.parquet",
-           "top100_v2.csv","weights_v2.csv","v2_holdout_results.csv",
-           "merchant_risk","merchant_ranking_v2_fraud_adjusted.parquet",
-           "top100_v2_fraud_adjusted.csv","top10_per_segment.csv"}
+WRITTEN = {"merchant_ranking_hybrid_features.parquet","merchant_ranking_hybrid.parquet",
+           "top100_hybrid.csv","weights_hybrid.csv","hybrid_holdout_results.csv",
+           "merchant_risk","merchant_ranking_hybrid_fraud_adjusted.parquet",
+           "top100_hybrid_fraud_adjusted.csv","top10_per_segment.csv"}
 
 def wdict(w):
     width = max(len(k) for k in w) + 2
     body = "\n".join(f'    "{k}":{" "*(width-len(k))}{v},' for k, v in w.items())
-    return "WEIGHTS_V2 = {\n" + body + "\n}"
+    return "WEIGHTS_HYBRID = {\n" + body + "\n}"
 
 for key, cfg in VARIANTS.items():
     vdir = ROOT/cfg["folder"]
@@ -73,14 +73,14 @@ for key, cfg in VARIANTS.items():
             s = s.replace('SCRIPTS = PROJECT_ROOT / "scripts"',
                           f'SCRIPTS = PROJECT_ROOT / "{cfg["folder"]}" / "scripts"')
             # 3. the weights themselves
-            if re.search(r'^WEIGHTS_V2\s*=\s*\{', s, re.M):
-                s = re.sub(r'^WEIGHTS_V2\s*=\s*\{[^}]*\}', wdict(cfg["weights"]), s, flags=re.M)
+            if re.search(r'^WEIGHTS_HYBRID\s*=\s*\{', s, re.M):
+                s = re.sub(r'^WEIGHTS_HYBRID\s*=\s*\{[^}]*\}', wdict(cfg["weights"]), s, flags=re.M)
             if s != before:
                 cell["source"] = s.splitlines(keepends=True); n_patch += 1
 
         banner = (f"# VARIANT: {cfg['title']}\n\n"
                   f"This is a copy of `notebooks/{nb_name}`. **Three things differ and nothing else:**\n\n"
-                  f"1. `WEIGHTS_V2` holds this variant's weights (set in `merchant_ranking_v2.ipynb`).\n"
+                  f"1. `WEIGHTS_HYBRID` holds this variant's weights (set in `merchant_ranking_hybrid.ipynb`).\n"
                   f"2. Reads and writes go to `data/variants/{key}/processed/`, so the three\n"
                   f"   variants never overwrite each other. Shared inputs there are symlinks to\n"
                   f"   `data/tables/processed/`.\n"
@@ -97,7 +97,7 @@ for key, cfg in VARIANTS.items():
                     "PROJECT_ROOT = SCRIPT_DIR.parents[1]   # variant copy: scripts/ sits one level deeper")
     sc = sc.replace('PROCESSED = PROJECT_ROOT / "data" / "tables" / "processed"',
                     f'PROCESSED = PROJECT_ROOT / "data" / "variants" / "{key}" / "processed"')
-    sc = re.sub(r'^WEIGHTS_V2\s*=\s*\{[^}]*\}', wdict(cfg["weights"]), sc, flags=re.M)
+    sc = re.sub(r'^WEIGHTS_HYBRID\s*=\s*\{[^}]*\}', wdict(cfg["weights"]), sc, flags=re.M)
     (vdir/"scripts"/"top10_per_segment.py").write_text(sc)
 
     print(f"{key}: {n_link} symlink input, folder {cfg['folder']}/\n")

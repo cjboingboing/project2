@@ -145,7 +145,7 @@ SEGMENT_NAMES = {1: "Established", 3: "Rising", 2: "Fading", 0: "Intermittent"}
 
 def plot_segments():
     segments = pd.read_parquet(PROCESSED / "merchant_behaviour_segments")[["merchant_abn", "segment_id"]]
-    ranking = pd.read_parquet(PROCESSED / "merchant_ranking_v2.parquet")
+    ranking = pd.read_parquet(PROCESSED / "merchant_ranking_hybrid.parquet")
     seg = ranking.merge(segments, on="merchant_abn", how="inner")
     log_rev = np.log10(seg["estimated_bnpl_revenue"])
     bins = np.linspace(log_rev.min(), log_rev.max(), 81)
@@ -168,16 +168,16 @@ def plot_segments():
     save(fig, "segments", "revenue_by_segment")
 
 
-# v1 weights as set in merchant_ranking_baseline.ipynb; v2 weights are saved by merchant_ranking_v2.ipynb.
+# v1 weights as set in merchant_ranking_baseline.ipynb; v2 weights are saved by merchant_ranking_hybrid.ipynb.
 WEIGHTS_V1 = {"estimated_bnpl_revenue": 0.30, "log_value_growth": 0.20, "transactions_per_customer": 0.10,
               "stability": 0.10, "unique_customers": 0.05, "active_month_ratio": 0.05, "repeat_rate": 0.05,
               "customer_income": 0.05, "customer_irsad": 0.05, "customer_spread": 0.05}
 
 
 def plot_ranking():
-    weights_v2 = pd.read_csv(PROCESSED / "weights_v2.csv", index_col=0)["weight"]
-    weights = pd.DataFrame({"v1": pd.Series(WEIGHTS_V1), "v2 (shipped)": weights_v2}).fillna(0) * 100
-    weights = weights.sort_values("v2 (shipped)", ascending=False)
+    weights_hybrid = pd.read_csv(PROCESSED / "weights_hybrid.csv", index_col=0)["weight"]
+    weights = pd.DataFrame({"v1": pd.Series(WEIGHTS_V1), "hybrid (shipped)": weights_hybrid}).fillna(0) * 100
+    weights = weights.sort_values("hybrid (shipped)", ascending=False)
     long = weights.rename_axis("feature").reset_index().melt("feature", var_name="version", value_name="weight")
     long["feature"] = long["feature"].str.replace("_", " ")
 
@@ -232,7 +232,7 @@ def plot_models(flag_cutoff=30):
 #fraud
 
 def plot_penalty():
-    fraud = pd.read_parquet(PROCESSED / "merchant_ranking_v2_fraud_adjusted.parquet")
+    fraud = pd.read_parquet(PROCESSED / "merchant_ranking_hybrid_fraud_adjusted.parquet")
     fraud["score_change"] = fraud["score_adjusted"] - fraud["score"]
     penalised = fraud["expected_fraud_loss"] > 0
 

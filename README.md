@@ -13,17 +13,18 @@ Start with **`notebooks/final_findings.ipynb`** — the summary for the presenta
 | EDA + features | `01_data_quality_eda.ipynb` | `merchant_features` (24 columns) |
 | Segments | `segment_behaviour.py` | `merchant_behaviour_segments` (4 segments) |
 | Product check | `segment_merchants.py` | `merchant_segments` (supporting only, see Findings) |
-| Ranking | `merchant_ranking_v2.ipynb`, `validation_timesplit.ipynb` | `merchant_ranking_v2.parquet`, `top100_v2.csv` |
+| Ranking | `merchant_ranking_hybrid.ipynb`, `validation_timesplit.ipynb`, `learned_weights.ipynb`, `rolling_validation.ipynb` | `merchant_ranking_hybrid.parquet`, `top100_hybrid.csv` |
 | Fraud | `fraud_models.ipynb`, `fraud_imputation_check.ipynb`, `fraud_penalty.ipynb` | consumer tier classifier, imputed scores, merchant risk tiers and fraud penalty |
 | Top 10 per segment | `top10_per_segment.py` | `top10_per_segment.csv` |
 | Slide figures | `make_plots.py` | PNGs under `plots/` |
 
-The ranking weights live in two places and must match: `WEIGHTS_V2` in
-`notebooks/merchant_ranking_v2.ipynb` and the copy in `scripts/top10_per_segment.py`.
+The ranking weights live in two places and must match: `WEIGHTS_HYBRID` in
+`notebooks/merchant_ranking_hybrid.ipynb` and the copy in `scripts/top10_per_segment.py`.
 
 `notebooks_weve_tried/` holds the alternatives that were built, measured and rejected — the v1
-ranking, the fitted-weight experiments, the walk-forward validation, and the whole pipeline under
-the pure learned weights. Its README explains what each one was and why it is not the shipped
+ranking and the whole pipeline under the pure learned weights. The notebooks that produced and
+tested the shipped weights (`learned_weights.ipynb`, `rolling_validation.ipynb`) are in
+`notebooks/`, since they justify what ships rather than compete with it. Its README explains what each one was and why it is not the shipped
 version.
 
 ## Findings
@@ -52,10 +53,10 @@ version.
 - `value_cv` is named "stability" but measures **volatility** (high = erratic).
 - Merchants are scored within their own segment using the v2 weights, so ranks are comparable to peers rather than to the whole market.
 
-**Ranking** (`merchant_ranking_v2.ipynb`, `validation_timesplit.ipynb`)
+**Ranking** (`merchant_ranking_hybrid.ipynb`, `validation_timesplit.ipynb`)
 - Train Feb 2021 – Feb 2022, test Mar – Aug 2022. v1 → v2: Spearman 0.740 → 0.905, capture 74.3% → 85.4%.
-- **The shipped weights are now the hybrid set** (`notebooks_weve_tried/learned_weights.ipynb`,
-  `rolling_validation.ipynb`): revenue 0.70, `active_month_ratio` 0.18, `customer_spread` 0.05,
+- **The shipped weights are now the hybrid set** (`notebooks/learned_weights.ipynb`,
+  `notebooks/rolling_validation.ipynb`): revenue 0.70, `active_month_ratio` 0.18, `customer_spread` 0.05,
   ABS 0.05, growth 0.02. Three independent fits across walk-forward folds all put
   `active_month_ratio` near 0.22 where the hand weights had given it 0.02 — that single row is the
   correction. On the September holdout: 91.1% capture, 80 of the realised top 100, against 87.8%
@@ -89,7 +90,7 @@ python scripts/process_cleaning.py        # cleaned tables (~14M transactions)
 # then notebooks/01_data_quality_eda.ipynb   -> merchant_features
 python scripts/segment_behaviour.py       # 4 segments from the 6 dimensions
 python scripts/segment_merchants.py       # product categories (supporting check)
-# then notebooks/merchant_ranking_v2.ipynb   -> merchant_ranking_v2.parquet
+# then notebooks/merchant_ranking_hybrid.ipynb   -> merchant_ranking_hybrid.parquet
 # then the three fraud notebooks             -> risk tiers and the fraud penalty
 python scripts/top10_per_segment.py       # top 10 per segment
 python scripts/make_plots.py              # slide figures into plots/

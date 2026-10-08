@@ -19,8 +19,8 @@ keeping the ranking methodology consistent across segments.
 
 Inputs
 ------
-data/tables/processed/merchant_ranking_v2.parquet
-    Full merchant-level v2 ranking/features from merchant_ranking_v2.ipynb.
+data/tables/processed/merchant_ranking_hybrid.parquet
+    Full merchant-level v2 ranking/features from merchant_ranking_hybrid.ipynb.
 
 data/tables/processed/merchant_behaviour_segments
     Behavioural segment assignment from segment_behaviour.py.
@@ -46,7 +46,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 PROCESSED = PROJECT_ROOT / "data" / "tables" / "processed"
 
-RANKING_PATH = PROCESSED / "merchant_ranking_v2.parquet"
+RANKING_PATH = PROCESSED / "merchant_ranking_hybrid.parquet"
 SEGMENTS_PATH = PROCESSED / "merchant_behaviour_segments"
 OUTPUT_PATH = PROCESSED / "top10_per_segment.csv"
 
@@ -67,8 +67,8 @@ NAMES = {
 # Leakage-free scoring configuration
 # ---------------------------------------------------------------------------
 
-# These are the final v2 weights from merchant_ranking_v2.ipynb.
-WEIGHTS_V2 = {
+# These are the final v2 weights from merchant_ranking_hybrid.ipynb.
+WEIGHTS_HYBRID = {
     "estimated_bnpl_revenue":     0.7,
     "log_value_growth":           0.02,
     "transactions_per_customer":  0.0,
@@ -80,7 +80,7 @@ WEIGHTS_V2 = {
     "customer_irsad":             0.02,
 }
 
-assert abs(sum(WEIGHTS_V2.values()) - 1.0) < 1e-9
+assert abs(sum(WEIGHTS_HYBRID.values()) - 1.0) < 1e-9
 
 
 # Revenue and growth use the same rank-space shrinkage as v2.
@@ -93,7 +93,7 @@ SHRINK_IN_RANK_SPACE = {
 # Kept only for compatibility if segmentation.ipynb refers to it.
 # Every segment now uses the same validated v2 weights.
 SEGMENT_WEIGHTS = {
-    seg_id: WEIGHTS_V2.copy()
+    seg_id: WEIGHTS_HYBRID.copy()
     for seg_id in NAMES
 }
 
@@ -134,7 +134,7 @@ def load() -> pd.DataFrame:
 
     if missing:
         raise ValueError(
-            "merchant_ranking_v2.parquet is missing required columns: "
+            "merchant_ranking_hybrid.parquet is missing required columns: "
             + ", ".join(missing)
         )
 
@@ -188,7 +188,7 @@ def derive(block: pd.DataFrame) -> pd.DataFrame:
 
 def segment_score_v2(
     block: pd.DataFrame,
-    weights: dict[str, float] = WEIGHTS_V2,
+    weights: dict[str, float] = WEIGHTS_HYBRID,
     k: int = K,
 ) -> pd.Series:
     """
