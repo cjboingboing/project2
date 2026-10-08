@@ -47,11 +47,11 @@ version.
 | Fading | 888 (22.1%) | mid-size, shrinking |
 | Intermittent | 553 (13.7%) | trade some months only, erratic |
 
-- Established holds **87.9% of the $91.2M** BNPL revenue. The best merchant outside it ranks 780th overall, which is exactly why the top 10 is taken per segment.
+- Established holds **87.9% of the $91.2M** BNPL revenue. The best merchant outside it ranks 714th overall (Fading 929th, Intermittent 2,644th), which is exactly why the top 10 is taken per segment.
 - Behaviour is not product: every segment holds 13–26% of every category. That justifies segmenting this way rather than by what merchants sell.
 - Percentile-rank the dimensions before clustering — raw values put 76% of merchants in one cluster.
 - `value_cv` is named "stability" but measures **volatility** (high = erratic).
-- Merchants are scored within their own segment using the v2 weights, so ranks are comparable to peers rather than to the whole market.
+- Merchants are scored within their own segment using the hybrid weights, so ranks are comparable to peers rather than to the whole market.
 
 **Ranking** (`merchant_ranking_hybrid.ipynb`, `validation_timesplit.ipynb`)
 - Train Feb 2021 – Feb 2022, test Mar – Aug 2022. v1 → v2: Spearman 0.740 → 0.905, capture 74.3% → 85.4%.

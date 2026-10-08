@@ -256,7 +256,7 @@ def add_ranks(df: pd.DataFrame) -> pd.DataFrame:
         Our final leakage-free segment score.
         Uses fixed v2 weights with percentile ranks recalculated within segment.
 
-    rank_in_segment_v2
+    rank_in_segment_hybrid
         Existing global v2 score, but re-ranked inside each segment.
 
     rank_in_segment_baseline
@@ -300,7 +300,7 @@ def add_ranks(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Reference: global v2 score.
-    df["rank_in_segment_v2"] = (
+    df["rank_in_segment_hybrid"] = (
         rank_within_segment("score")
         .astype(int)
     )
@@ -364,7 +364,7 @@ def report(df: pd.DataFrame) -> None:
 
         overlap_global_v2 = len(
             selected
-            & picks("rank_in_segment_v2")
+            & picks("rank_in_segment_hybrid")
         )
 
         overlap_revenue = len(
@@ -449,7 +449,7 @@ def main() -> None:
         "segment_name",
         "segment",
         "rank_in_segment",
-        "rank_in_segment_v2",
+        "rank_in_segment_hybrid",
         "rank_in_segment_baseline",
         "merchant_abn",
         "name",
