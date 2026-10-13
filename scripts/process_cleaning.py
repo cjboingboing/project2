@@ -771,7 +771,7 @@ def clean_transactions(
         )
         .withColumn(
             "order_datetime",
-            F.col("order_datetime").cast("timestamp"),
+            F.col("order_datetime").cast("date"),
         )
         .withColumn(
             "order_date",
@@ -913,7 +913,7 @@ def main() -> None:
     # heap size Spark defaults to 1g -- too small for the shuffles/hash
     # aggregations (fraud-probability joins, order_id dedup) over 14M+ rows.
     spark = (
-        SparkSession.builder
+        SparkSession.builder.config("spark.sql.session.timeZone", "Etc/UTC")
         .appName(
             "assignment2_cleaning_standardisation"
         )

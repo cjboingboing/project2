@@ -52,51 +52,20 @@ OUTPUT_PATH = PROCESSED / "top10_per_segment.csv"
 
 TOP_N = 10
 K = 300
-
-
-# Display names for the seeded K-means clusters.
-NAMES = {
-    1: "Established",
-    3: "Rising",
-    2: "Fading",
-    0: "Intermittent",
-}
-
-
-# ---------------------------------------------------------------------------
-# Leakage-free scoring configuration
-# ---------------------------------------------------------------------------
-
-# These are the final v2 weights from merchant_ranking_hybrid.ipynb.
 WEIGHTS_HYBRID = {
-    "estimated_bnpl_revenue":     0.7,
-    "log_value_growth":           0.02,
-    "transactions_per_customer":  0.0,
-    "repeat_rate":                0.0,
-    "stability":                  0.0,
-    "active_month_ratio":         0.18,
-    "customer_spread":            0.05,
-    "customer_income":            0.03,
-    "customer_irsad":             0.02,
+    "estimated_bnpl_revenue": .70, "log_value_growth": .02,
+    "transactions_per_customer": 0., "repeat_rate": 0., "stability": 0.,
+    "active_month_ratio": .18, "customer_spread": .05,
+    "customer_income": .03, "customer_irsad": .02,
 }
-
-assert abs(sum(WEIGHTS_HYBRID.values()) - 1.0) < 1e-9
-
-
-# Revenue and growth use the same rank-space shrinkage as v2.
-SHRINK_IN_RANK_SPACE = {
-    "estimated_bnpl_revenue",
-    "log_value_growth",
-}
+WEIGHTS_MACHINE = {**dict.fromkeys(WEIGHTS_HYBRID, 0.),
+                   "estimated_bnpl_revenue": .724,
+                   "active_month_ratio": .218, "customer_spread": .058}
+SHRINK_IN_RANK_SPACE = {"estimated_bnpl_revenue", "log_value_growth"}
+NAMES = {1: "Established", 3: "Rising", 2: "Fading", 0: "Intermittent"}
 
 
-# Kept only for compatibility if segmentation.ipynb refers to it.
-# Every segment now uses the same validated v2 weights.
-SEGMENT_WEIGHTS = {
-    seg_id: WEIGHTS_HYBRID.copy()
-    for seg_id in NAMES
-}
-
+SEGMENT_WEIGHTS = {seg_id: WEIGHTS_HYBRID.copy() for seg_id in NAMES}
 
 # ---------------------------------------------------------------------------
 # Loading and validation

@@ -20,7 +20,7 @@ keeping the ranking methodology consistent across segments.
 Inputs
 ------
 data/tables/processed/merchant_ranking_machine.parquet
-    Full merchant-level v2 ranking/features from merchant_ranking_hybrid.ipynb.
+    Full merchant-level v2 ranking/features from merchant_ranking_machine.ipynb.
 
 data/tables/processed/merchant_behaviour_segments
     Behavioural segment assignment from segment_behaviour.py.
@@ -43,7 +43,9 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parents[1]   # variant copy: scripts/ sits one level deeper
+PROJECT_ROOT = SCRIPT_DIR.parents[1]
+import sys
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 PROCESSED = PROJECT_ROOT / "data" / "variants" / "machine" / "processed"
 
 RANKING_PATH = PROCESSED / "merchant_ranking_machine.parquet"
@@ -52,51 +54,22 @@ OUTPUT_PATH = PROCESSED / "top10_per_segment.csv"
 
 TOP_N = 10
 K = 300
-
-
-# Display names for the seeded K-means clusters.
-NAMES = {
-    1: "Established",
-    3: "Rising",
-    2: "Fading",
-    0: "Intermittent",
+WEIGHTS_HYBRID = {
+    "estimated_bnpl_revenue": .70, "log_value_growth": .02,
+    "transactions_per_customer": 0., "repeat_rate": 0., "stability": 0.,
+    "active_month_ratio": .18, "customer_spread": .05,
+    "customer_income": .03, "customer_irsad": .02,
 }
+WEIGHTS_MACHINE = {**dict.fromkeys(WEIGHTS_HYBRID, 0.),
+                   "estimated_bnpl_revenue": .724,
+                   "active_month_ratio": .218, "customer_spread": .058}
+SHRINK_IN_RANK_SPACE = {"estimated_bnpl_revenue", "log_value_growth"}
+NAMES = {1: "Established", 3: "Rising", 2: "Fading", 0: "Intermittent"}
 
 
-# ---------------------------------------------------------------------------
-# Leakage-free scoring configuration
-# ---------------------------------------------------------------------------
+WEIGHTS_HYBRID = WEIGHTS_MACHINE
 
-# These are the final v2 weights from merchant_ranking_hybrid.ipynb.
-WEIGHTS_MACHINE = {
-    "estimated_bnpl_revenue":     0.724,
-    "log_value_growth":           0.0,
-    "transactions_per_customer":  0.0,
-    "repeat_rate":                0.0,
-    "stability":                  0.0,
-    "active_month_ratio":         0.218,
-    "customer_spread":            0.058,
-    "customer_income":            0.0,
-    "customer_irsad":             0.0,
-}
-
-assert abs(sum(WEIGHTS_MACHINE.values()) - 1.0) < 1e-9
-
-
-# Revenue and growth use the same rank-space shrinkage as v2.
-SHRINK_IN_RANK_SPACE = {
-    "estimated_bnpl_revenue",
-    "log_value_growth",
-}
-
-
-# Kept only for compatibility if segmentation.ipynb refers to it.
-# Every segment now uses the same validated v2 weights.
-SEGMENT_WEIGHTS = {
-    seg_id: WEIGHTS_MACHINE.copy()
-    for seg_id in NAMES
-}
-
+SEGMENT_WEIGHTS = {seg_id: WEIGHTS_HYBRID.copy() for seg_id in NAMES}
 
 # ---------------------------------------------------------------------------
 # Loading and validation
@@ -188,7 +161,7 @@ def derive(block: pd.DataFrame) -> pd.DataFrame:
 
 def segment_score_v2(
     block: pd.DataFrame,
-    weights: dict[str, float] = WEIGHTS_MACHINE,
+    weights: dict[str, float] = WEIGHTS_HYBRID,
     k: int = K,
 ) -> pd.Series:
     """
@@ -256,7 +229,7 @@ def add_ranks(df: pd.DataFrame) -> pd.DataFrame:
         Our final leakage-free segment score.
         Uses fixed v2 weights with percentile ranks recalculated within segment.
 
-    rank_in_segment_v2
+    rank_in_segment_hybrid
         Existing global v2 score, but re-ranked inside each segment.
 
     rank_in_segment_baseline
@@ -300,7 +273,7 @@ def add_ranks(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Reference: global v2 score.
-    df["rank_in_segment_v2"] = (
+    df["rank_in_segment_hybrid"] = (
         rank_within_segment("score")
         .astype(int)
     )
@@ -364,7 +337,7 @@ def report(df: pd.DataFrame) -> None:
 
         overlap_global_v2 = len(
             selected
-            & picks("rank_in_segment_v2")
+            & picks("rank_in_segment_hybrid")
         )
 
         overlap_revenue = len(
@@ -449,7 +422,7 @@ def main() -> None:
         "segment_name",
         "segment",
         "rank_in_segment",
-        "rank_in_segment_v2",
+        "rank_in_segment_hybrid",
         "rank_in_segment_baseline",
         "merchant_abn",
         "name",

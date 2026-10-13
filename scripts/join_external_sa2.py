@@ -138,7 +138,7 @@ def report_missing(consumers_sa2):
 
 
 def main():
-    spark = SparkSession.builder.appName("bnpl_join_external_sa2").getOrCreate()
+    spark = SparkSession.builder.config("spark.sql.session.timeZone", "Etc/UTC").appName("bnpl_join_external_sa2").getOrCreate()
 
     if not POA_SA2_PATH.exists():
         raise SystemExit(

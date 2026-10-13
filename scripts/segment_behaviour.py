@@ -166,7 +166,7 @@ def report(pred, dim_names):
 
 
 def main():
-    spark = SparkSession.builder.appName("bnpl_segment_behaviour").getOrCreate()
+    spark = SparkSession.builder.config("spark.sql.session.timeZone", "Etc/UTC").appName("bnpl_segment_behaviour").getOrCreate()
 
     print("Loading merchant features...")
     df = load_features(spark)

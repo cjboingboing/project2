@@ -1,3 +1,7 @@
+# Historical proposal — not the implemented ranking
+
+This brainstorm is retained as design history. Its proposed forecasting method and expected benchmark comparisons are not current findings. See README.md and README.md for the implemented pipeline and reproduced results.
+
 # Ranking system — brainstorm
 
 Sam, for the Week 8 checkpoint. This is a proposal to argue about, not a decision.

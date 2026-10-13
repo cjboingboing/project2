@@ -388,7 +388,7 @@ def report_census(census):
 
 
 def main():
-    spark = SparkSession.builder.appName("bnpl_external_abs_sa2").getOrCreate()
+    spark = SparkSession.builder.config("spark.sql.session.timeZone", "Etc/UTC").appName("bnpl_external_abs_sa2").getOrCreate()
 
     EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

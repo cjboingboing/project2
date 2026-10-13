@@ -97,7 +97,7 @@ def get_spark():
     global _spark
     if _spark is None:
         from pyspark.sql import SparkSession
-        _spark = SparkSession.builder.config("spark.driver.memory", "6g").getOrCreate()
+        _spark = SparkSession.builder.config("spark.sql.session.timeZone", "Etc/UTC").config("spark.driver.memory", "6g").getOrCreate()
         _spark.sparkContext.setLogLevel("ERROR")
     return _spark
 
@@ -325,8 +325,8 @@ def plot_fraud_weighting():
         ax.text(mid, rows["score"] - 0.16, f"Expected loss\n{t['p']:.1f}% × \\${t['dollar_value']:,.0f} = \\${t['loss']:,.0f}",
                 ha="center", va="top", fontsize=12, linespacing=1.4)
         x += w
-    ax.text(0, 0.0, f"Expected loss for the day: ${example['loss'].sum():,.0f}. "
-            "Each merchant carries the part of the score that matches its part of the day's spend.",
+    ax.text(0, 0.0, f"Allocation illustration before thresholding: ${example['loss'].sum():,.0f}. "
+            "Default MIN_SCORE=30 excludes any score below 30.",
             fontsize=12, color=INK_SOFT, va="bottom")
     save(fig, "fraud", "score_split_across_purchases")
     print(example[["merchant_abn", "name", "dollar_value", "share", "score", "p", "loss"]].round(3).to_string())

@@ -110,7 +110,7 @@ def report(segments):
 
 
 def main():
-    spark = SparkSession.builder.appName("bnpl_segment_merchants").getOrCreate()
+    spark = SparkSession.builder.config("spark.sql.session.timeZone", "Etc/UTC").appName("bnpl_segment_merchants").getOrCreate()
 
     print("Loading merchants...")
     merchants = load_merchants(spark)

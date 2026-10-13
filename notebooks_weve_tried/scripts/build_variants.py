@@ -1,103 +1,98 @@
-"""ARSIP - skrip ini dipakai untuk membuat folder varian waktu kami membandingkan
-tiga set bobot. Folder notebooks_hybrid/ sudah dilebur ke notebooks/ (bobot hybrid
-adalah yang dipakai), dan notebooks_machine/ sudah pindah ke notebooks_weve_tried/
-dengan akhiran _machine. Disimpan sebagai catatan cara varian itu dibuat.
+"""Regenerate the optional fixed-Machine notebooks from the current main pipeline.
+
+Run explicitly after editing main notebooks. Shared data links are prepared here; generated outputs are never symlinked.
 """
-
-import json, re, shutil
 from pathlib import Path
+import json
 
-ROOT = Path("/sessions/rcw-01jeqmsvqtdvcylqgpvpulhh/mnt/MAST30034_Python/project2")
-SHARED = ROOT/"data"/"tables"/"processed"
+ROOT = Path(__file__).resolve().parents[2]
+PAIRS = {'merchant_ranking_hybrid': 'merchant_ranking_machine',
+         'fraud_penalty': 'fraud_penalty_machine',
+         'fraud_imputation_check': 'fraud_imputation_check_machine',
+         'segmentation': 'segmentation_machine', 'final_findings': 'final_findings_machine'}
 
-VARIANTS = {
- "hybrid": {
-   "folder": "notebooks_hybrid",
-   "title": "Hybrid weights (learned shape + ABS floor)",
-   "weights": {"estimated_bnpl_revenue":0.70,"log_value_growth":0.02,
-               "transactions_per_customer":0.0,"repeat_rate":0.0,"stability":0.0,
-               "active_month_ratio":0.18,"customer_spread":0.05,
-               "customer_income":0.03,"customer_irsad":0.02},
- },
- "machine": {
-   "folder": "notebooks_machine",
-   "title": "Pure learned weights (no floors)",
-   "weights": {"estimated_bnpl_revenue":0.724,"log_value_growth":0.0,
-               "transactions_per_customer":0.0,"repeat_rate":0.0,"stability":0.0,
-               "active_month_ratio":0.218,"customer_spread":0.058,
-               "customer_income":0.0,"customer_irsad":0.0},
- },
-}
 
-NOTEBOOKS = ["merchant_ranking_hybrid.ipynb","fraud_penalty.ipynb",
-             "fraud_imputation_check.ipynb","segmentation.ipynb","final_findings.ipynb"]
+INPUTS = ["transactions_clean", "merchants_clean", "merchant_features", "consumers",
+          "consumers_sa2", "consumer_fraud_probability", "merchant_fraud_probability",
+          "duplicate_order_ids", "merchant_behaviour_segments", "merchant_segments"]
 
-# files each variant WRITES - these must never be symlinked
-WRITTEN = {"merchant_ranking_hybrid_features.parquet","merchant_ranking_hybrid.parquet",
-           "top100_hybrid.csv","weights_hybrid.csv","hybrid_holdout_results.csv",
-           "merchant_risk","merchant_ranking_hybrid_fraud_adjusted.parquet",
-           "top100_hybrid_fraud_adjusted.csv","top10_per_segment.csv"}
 
-def wdict(w):
-    width = max(len(k) for k in w) + 2
-    body = "\n".join(f'    "{k}":{" "*(width-len(k))}{v},' for k, v in w.items())
-    return "WEIGHTS_HYBRID = {\n" + body + "\n}"
+def prepare_inputs():
+    target = ROOT / "data" / "variants" / "machine" / "processed"
+    target.mkdir(parents=True, exist_ok=True)
+    for name in INPUTS:
+        source, link = ROOT / "data" / "tables" / "processed" / name, target / name
+        if not source.exists():
+            raise FileNotFoundError(source)
+        if link.exists() or link.is_symlink():
+            if link.resolve() != source.resolve():
+                raise RuntimeError(f"Refusing to replace existing variant input: {link}")
+        else:
+            link.symlink_to(source, target_is_directory=source.is_dir())
+    print(f"Prepared shared inputs in {target}")
 
-for key, cfg in VARIANTS.items():
-    vdir = ROOT/cfg["folder"]
-    (vdir/"scripts").mkdir(parents=True, exist_ok=True)
-    out = ROOT/"data"/"variants"/key/"processed"
-    out.mkdir(parents=True, exist_ok=True)
 
-    # symlink every shared input the variant reads but never writes
-    n_link = 0
-    for item in sorted(SHARED.iterdir()):
-        if item.name in WRITTEN or item.name.startswith("."):
-            continue
-        link = out/item.name
-        if not link.exists() and not link.is_symlink():
-            link.symlink_to(Path("../../../tables/processed")/item.name)
-            n_link += 1
 
-    for nb_name in NOTEBOOKS:
-        nb = json.loads((ROOT/"notebooks"/nb_name).read_text())
-        n_patch = 0
-        for cell in nb["cells"]:
-            if cell["cell_type"] != "code":
-                continue
-            s = "".join(cell["source"]); before = s
-            # 1. send every read and write to this variant's own data folder
-            s = re.sub(r'(PROCESSED(?:_PATH)?\s*=\s*PROJECT_ROOT\s*/\s*)"data"\s*/\s*"tables"\s*/\s*"processed"',
-                       rf'\1"data" / "variants" / "{key}" / "processed"', s)
-            # 2. use this variant's own copy of the helper script
-            s = s.replace('SCRIPTS = PROJECT_ROOT / "scripts"',
-                          f'SCRIPTS = PROJECT_ROOT / "{cfg["folder"]}" / "scripts"')
-            # 3. the weights themselves
-            if re.search(r'^WEIGHTS_HYBRID\s*=\s*\{', s, re.M):
-                s = re.sub(r'^WEIGHTS_HYBRID\s*=\s*\{[^}]*\}', wdict(cfg["weights"]), s, flags=re.M)
-            if s != before:
-                cell["source"] = s.splitlines(keepends=True); n_patch += 1
+def main():
+    prepare_inputs()
+    for source, name in PAIRS.items():
+        nb = json.loads((ROOT / 'notebooks' / f'{source}.ipynb').read_text())
+        for cell in nb['cells']:
+            text = ''.join(cell['source'])
+            if cell['cell_type'] == 'code':
+                text = text.replace('/ "data" / "tables" / "processed"',
+                                    '/ "data" / "variants" / "machine" / "processed"')
+                text = text.replace('SCRIPTS = PROJECT_ROOT / "scripts"',
+                                    'SCRIPTS = PROJECT_ROOT / "notebooks_weve_tried" / "scripts"')
+                for a, b in [('merchant_ranking_hybrid', 'merchant_ranking_machine'),
+                             ('top100_hybrid', 'top100_machine'), ('weights_hybrid', 'weights_machine'),
+                             ('hybrid_holdout_results', 'machine_holdout_results'),
+                             ('hybrid_fraud_sensitivity', 'machine_fraud_sensitivity'),
+                             ('top{TOP_N}_hybrid', 'top{TOP_N}_machine')]:
+                    text = text.replace(a, b)
+                if source == 'merchant_ranking_hybrid' and 'def score_hybrid(' in text:
+                    text = 'WEIGHTS_HYBRID = WEIGHTS_MACHINE\n' + text
+                text = text.replace('K, REVENUE_WEIGHT = 300, 0.70',
+                                    'K, REVENUE_WEIGHT = 300, 0.724')
+                text = text.replace('hybrid (frozen before holdout)', 'machine (frozen before holdout)')
+                text = text.replace('hybrid (shipped)', 'machine (comparison)')
+                cell['outputs'] = []
+                cell['execution_count'] = None
+            else:
+                text = text.replace('Hybrid', 'Machine').replace('hybrid', 'machine')
+                if source == 'merchant_ranking_hybrid' and text.startswith('## 4.'):
+                    text = ('## 4. Fixed Machine weights\n\nRevenue 72.4%, activity 21.8%, '
+                            'customer spread 5.8%; all other terms zero. The fixed comparator '
+                            'is not overwritten by current rolling fits.\n')
+                if source == 'final_findings' and text.startswith('## Market segments'):
+                    text = ('## Market segments\n\nBehavioural clusters are shared with the main pipeline. '
+                            'Machine uses revenue 72.4%, activity 21.8% and customer spread 5.8%; '
+                            'all other dimensions are diagnostic only.\n')
+                if source == 'final_findings' and text.startswith('## Ranking model'):
+                    text = ('## Ranking model\n\nThe fixed Machine comparison uses the shared '
+                            'rank-space scoring rules and 72.4% revenue, 21.8% activity, '
+                            '5.8% customer spread. September uses history-only predictors '
+                            'but is inspected across experiments.\n')
+            cell['source'] = text.splitlines(keepends=True)
+        nb['cells'][0]['source'] = [
+            '# Fixed Machine comparison\n\n',
+            'Historical fixed weights: revenue 72.4%, activity 21.8%, spread 5.8%.\n',
+            'These are a separate frozen comparator, not the current rolling-fit mean.\n',
+            'All feature windows and scoring rules are shared with the main pipeline.\n',
+            'Writes go to data/variants/machine/processed; diagnostic models are shared.\n',
+            'September is an exploratory evaluation reused across comparisons.\n']
+        (ROOT / 'notebooks_weve_tried' / f'{name}.ipynb').write_text(
+            json.dumps(nb, indent=1, ensure_ascii=False) + '\n')
+    text = (ROOT / 'scripts/top10_per_segment.py').read_text()
+    text = text.replace('PROJECT_ROOT = SCRIPT_DIR.parent',
+                        'PROJECT_ROOT = SCRIPT_DIR.parents[1]\nimport sys\nsys.path.insert(0, str(PROJECT_ROOT / "scripts"))')
+    text = text.replace('/ "data" / "tables" / "processed"',
+                        '/ "data" / "variants" / "machine" / "processed"')
+    text = text.replace('merchant_ranking_hybrid', 'merchant_ranking_machine')
+    text = text.replace('SEGMENT_WEIGHTS =', 'WEIGHTS_HYBRID = WEIGHTS_MACHINE\nSEGMENT_WEIGHTS =')
+    (ROOT / 'notebooks_weve_tried/scripts/top10_per_segment.py').write_text(text)
+    print('Updated five Machine notebooks and the variant segment helper')
 
-        banner = (f"# VARIANT: {cfg['title']}\n\n"
-                  f"This is a copy of `notebooks/{nb_name}`. **Three things differ and nothing else:**\n\n"
-                  f"1. `WEIGHTS_HYBRID` holds this variant's weights (set in `merchant_ranking_hybrid.ipynb`).\n"
-                  f"2. Reads and writes go to `data/variants/{key}/processed/`, so the three\n"
-                  f"   variants never overwrite each other. Shared inputs there are symlinks to\n"
-                  f"   `data/tables/processed/`.\n"
-                  f"3. `segmentation.ipynb` loads its helper from this folder's own `scripts/`.\n\n"
-                  f"Every other line is identical to the original. Compare with `diff` if in doubt.\n")
-        nb["cells"].insert(0, {"cell_type":"markdown","metadata":{},
-                               "source":banner.splitlines(keepends=True)})
-        (vdir/nb_name).write_text(json.dumps(nb, indent=1))
-        print(f"  {key}/{nb_name}: {n_patch} sel dipatch")
 
-    # the helper script, with the same three changes
-    sc = (ROOT/"scripts"/"top10_per_segment.py").read_text()
-    sc = sc.replace("PROJECT_ROOT = SCRIPT_DIR.parent",
-                    "PROJECT_ROOT = SCRIPT_DIR.parents[1]   # variant copy: scripts/ sits one level deeper")
-    sc = sc.replace('PROCESSED = PROJECT_ROOT / "data" / "tables" / "processed"',
-                    f'PROCESSED = PROJECT_ROOT / "data" / "variants" / "{key}" / "processed"')
-    sc = re.sub(r'^WEIGHTS_HYBRID\s*=\s*\{[^}]*\}', wdict(cfg["weights"]), sc, flags=re.M)
-    (vdir/"scripts"/"top10_per_segment.py").write_text(sc)
-
-    print(f"{key}: {n_link} symlink input, folder {cfg['folder']}/\n")
+if __name__ == '__main__':
+    main()

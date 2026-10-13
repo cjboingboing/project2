@@ -1,100 +1,40 @@
-# Fraud: classifiers, merchant risk and the ranking penalty
+# Fraud diagnostics and adjustment
 
-**Short version:** don't impute the fraud scores. Use them as flags, and turn them into an expected dollar loss in the ranking. With the default settings, the penalty keeps 99 of v2's top 100 and mostly reorders the middle and tail of the ranking.
+The authoritative values are calculated in the reproduced-results section in `README.md`, the executed
+notebooks and `data/tables/processed/results_summary.json`. Historical hardcoded
+metrics have been removed to avoid mixing runs and reporting periods.
 
-## Why not imputation
+`fraud_models.ipynb` trains three consumer classifiers on supplied score thresholds
+30/50/70, with disjoint training/test users, and merchant classifiers evaluated by
+leave-one-merchant-out predictions on the scored merchant-days. Input rows are
+sorted before splitting/training, and random seeds and thread counts are fixed.
+It reads the canonical `consumers_sa2` enrichment and exports models/evaluation
+frames under `data/tables/models/`. These are retrospective diagnostic models;
+features can describe the whole scoring window, rather than what was available
+before each individual purchase. Results are not prospective fraud validation.
 
-- **The scores are a pre-screened sample.** Consumer scores exist for 34,765 user-days, about 0.25% of transactions, and none is below 8.29%. Merchant scores exist for 114 merchant-days across 61 merchants, and none is below 18%.
-- **Imputing would extrapolate.** A model fit only on flagged rows gives every ordinary transaction a 10–15% score.
-- **The regression wasn't good enough.** Log-target OLS, random forest and XGBoost reached an RMSE of about 7, which is R² ≈ 0.5. That isn't precise enough to use a prediction as a probability.
-- **The scores measure size.** Both scores follow how large a transaction or day is **relative to that user's or merchant's usual**. On days with a single transaction, the consumer score has a 0.91 rank correlation with log transaction value.
+`fraud_penalty.ipynb` uses supplied probabilities, not XGBoost predictions:
 
-## Linking scores to transactions
+1. A score below MIN_SCORE contributes zero; the default is 30.
+2. Consumer probability is allocated by each transaction's share of user-day spend.
+3. Combined probability is `1 - (1 - consumer_probability) * (1 - merchant_probability)`.
+4. Expected transaction loss is probability × purchase amount × severity.
+5. Each merchant's scoring-window loss rate is applied to its **March 2021–September
+   2022 production GMV**, then subtracted from estimated BNPL revenue.
+6. The same rank-space revenue term is recomputed. All other score terms are retained.
 
-Scores are recorded per user per day, and `order_datetime` has no time of day. A score links to one exact transaction only when that user made a single transaction that day, which is 27% of scored days. On shared days, the consumer classifier picks out one transaction: the day's top transaction has a median score of 0.94, against 0.06 for the next.
+Default severity is 1.0. `hybrid_fraud_sensitivity.csv` records every tested setting;
+use its actual minimum/maximum overlap when reporting robustness. Both the full
+adjusted Parquet and Top 100 CSV include `fraud_review`. Review flags and inferred
+risk tiers do not enter expected loss or the ranking score.
 
-Side effect: the "earliest transaction that day" rule in `archive/imputation.ipynb` is effectively arbitrary.
+Scores cover February 2021–February 2022 and are extremely sparse. Missing means
+unknown, even though this observed-score scenario assigns zero to missing scores.
+Calibration is unknown. Expected loss is neither a calibrated prediction nor a
+mathematically established lower bound. The separate imputation experiment must
+not be described as the adopted ranking input. Alternative loss totals used for
+ranking are also restricted to the production window; raw full-dataset diagnostic
+plots are explicitly labelled separately.
 
-## Notebooks
-
-| Notebook | What it does | Output |
-|---|---|---|
-| `fraud_models.ipynb` | The two diagnostic classifiers, which explain what the scores respond to and do not feed the ranking. Part A: per-transaction consumer tier classifier (three models for score ≥30, ≥50 and ≥70; split by user; each user-day weighted to count once). Part B: merchant tier classifier on the 114 scored days | trained models and evaluation data in `data/tables/models/` |
-| `fraud_penalty.ipynb` | Part A: merchant-level summary features and a classifier for "is this merchant ever scored?"; gives each merchant a risk tier. Part B: expected fraud loss from the observed scores; fraud-adjusted v2 ranking | `merchant_risk`, `merchant_ranking_hybrid_fraud_adjusted.parquet`, `top100_hybrid_fraud_adjusted.csv` |
-| `fraud_penalty.ipynb`, Part C | Test only, not adopted: imputes consumer scores for user-days with none, from the user's spend that day, and compares the resulting loss and ranking with the adopted ones | none |
-| `fraud_imputation_check.ipynb` | Visual check of that imputation: the spend-band lookup, real against imputed loss through time, and what the imputation adds per month | none |
-| `archive/imputation.ipynb` | The abandoned regression approach, kept as a record | none |
-
-Run order: `join_external_sa2.py` → `01_data_quality_eda.ipynb` → `merchant_ranking_hybrid.ipynb` → `fraud_penalty.ipynb`. `fraud_models.ipynb` is independent of the ranking; it needs `join_external.py` (for `consumers_abs`) and is only required by `final_findings.ipynb`.
-
-## Results
-
-PR-AUC measures how well a model ranks positives first. A random ranking scores the prevalence, shown in brackets.
-
-**Consumer tier classifier.** Tested on held-out users; "exact" means days with a single transaction.
-
-| Cutoff | Exact days | All days |
-|---|---|---|
-| ≥30 | 0.97 (0.07) | 0.96 (0.06) |
-| ≥50 | 0.89 (0.02) | 0.88 (0.02) |
-| ≥70 | 0.93 (0.003) | 0.70 (0.003) |
-
-≥70 has only 20 test days, so its numbers are noisy.
-
-**Merchant tier classifier.** 114 scored days, with each merchant held out in turn:
-
-| Cutoff | Scored days | PR-AUC |
-|---|---|---|
-| ≥30 | 73 | 0.96 (0.64) |
-| ≥50 | 27 | 0.91–0.93 (0.24) |
-| ≥70 | 7 | too few to trust |
-
-At ≥70, a single transaction is the merchant's whole day of revenue.
-
-**Merchant "ever scored?" classifier:**
-
-| Features | PR-AUC |
-|---|---|
-| Spread and variance features alone | 0.15 (0.014) |
-| + size | 0.76 |
-
-Size dominates. Scored merchants are big-ticket merchants, so the `suspect` flag is partly a size flag. Don't use it as a penalty.
-
-**Merchant risk tiers:**
-
-| Tier | Rule | Merchants |
-|---|---|---|
-| high | highest score ≥70 | 7 |
-| flagged | 50–70 | 18 |
-| watch | 30–50 | 21 |
-| scored_low | all scores <30 | 15 |
-| suspect | never scored, but looks like scored merchants | 13 |
-
-## The penalty
-
-For each transaction:
-
-- **P(fraud)** = 1 − (1 − p_merchant)(1 − p_consumer).
-- **Expected loss** = severity × P(fraud) × value. A fraudulent BNPL transaction costs the principal, not just the fee.
-- **Applied to the ranking:**
-  - fraud-adjusted revenue = `estimated_bnpl_revenue` − loss rate × `total_value`
-  - it replaces the 70% revenue term in the v2 score; every other term is unchanged.
-
-The scores' calibration is unknown, so quote the sweep, not a single number:
-
-| Scores counted | Loss severity | Spearman vs v2 | Top-100 overlap | Loss > revenue |
-|---|---|---|---|---|
-| all | 1.0 | 0.853 | 97 | 553 |
-| all | 0.25 | 0.961 | 99 | 214 |
-| **≥30 (default)** | **1.0** | **0.975** | **99** | **171** |
-| ≥50 | 1.0 | 0.981 | 99 | 103 |
-
-- **Consumer scores make up more than 95% of expected loss.** They follow transaction size, so counting the 8–15% "scored low" days hits big-ticket merchants hardest.
-- **The fraud-adjusted top 100** has 5 `watch`, 9 `scored_low` and 1 `suspect` merchant. These are review flags, not exclusions.
-
-## Limitations
-
-- **The expected loss is a lower bound.** Unscored transactions count as 0, and scores cover only Feb 2021 – Feb 2022.
-- **The merchant penalty can't be validated.** The test window has no fraud scores.
-- **Look-ahead features.** Features use the whole period, including days after a given score. That's fine for description, but not for a live system.
-- **Unmatched merchants.** 13 of the 61 scored merchants have no row in `merchants_clean`, so they can't be ranked.
+The user-day allocation figure illustrates the arithmetic before thresholding.
+A score of 18.1 contributes no loss under the adopted threshold of 30.
